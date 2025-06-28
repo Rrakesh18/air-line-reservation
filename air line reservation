@@ -1,0 +1,174 @@
+// AirlineReservationSystem.java
+import java.sql.*;
+import java.util.Scanner;
+
+public class AirlineReservationSystem {
+    static final String DB_URL = "jdbc:mysql://localhost:3306/airline_db";
+    static final String USER = "root";
+    static final String PASS = "yourpassword";
+
+    static Connection conn;
+    static Scanner sc = new Scanner(System.in);
+
+    public static void main(String[] args) {
+        try {
+            conn = DriverManager.getConnection(DB_URL, USER, PASS);
+            System.out.println("Connected to database.");
+
+            while (true) {
+                System.out.println("\n1. Customer Login\n2. Admin Login\n3. Exit");
+                int choice = sc.nextInt();
+                sc.nextLine();
+
+                switch (choice) {
+                    case 1: customerMenu(); break;
+                    case 2: adminMenu(); break;
+                    case 3: System.exit(0);
+                }
+            }
+
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
+    // CUSTOMER SECTION
+    static void customerMenu() throws SQLException {
+        System.out.print("Enter username: ");
+        String username = sc.nextLine();
+        System.out.print("Enter password: ");
+        String password = sc.nextLine();
+
+        String sql = "SELECT * FROM users WHERE username=? AND password=? AND role='customer'";
+        PreparedStatement stmt = conn.prepareStatement(sql);
+        stmt.setString(1, username);
+        stmt.setString(2, password);
+        ResultSet rs = stmt.executeQuery();
+
+        if (rs.next()) {
+            int userId = rs.getInt("user_id");
+            System.out.println("Welcome, " + username);
+
+            while (true) {
+                System.out.println("\n1. View Flights\n2. Book Flight\n3. Cancel Booking\n4. Logout");
+                int ch = sc.nextInt();
+
+                switch (ch) {
+                    case 1: viewFlights(); break;
+                    case 2: bookFlight(userId); break;
+                    case 3: cancelBooking(userId); break;
+                    case 4: return;
+                }
+            }
+        } else {
+            System.out.println("Invalid credentials.");
+        }
+    }
+
+    static void viewFlights() throws SQLException {
+        String sql = "SELECT * FROM flights";
+        Statement stmt = conn.createStatement();
+        ResultSet rs = stmt.executeQuery(sql);
+
+        System.out.println("\nAvailable Flights:");
+        while (rs.next()) {
+            System.out.println("ID: " + rs.getInt("flight_id") + ", " + rs.getString("flight_name") +
+                               " | From: " + rs.getString("source") + " -> To: " + rs.getString("destination") +
+                               " | Date: " + rs.getDate("date") + " | Time: " + rs.getTime("time") +
+                               " | Seats: " + rs.getInt("seats_available"));
+        }
+    }
+
+    static void bookFlight(int userId) throws SQLException {
+        System.out.print("Enter Flight ID to book: ");
+        int flightId = sc.nextInt();
+        String sql = "INSERT INTO bookings (user_id, flight_id, booking_date) VALUES (?, ?, NOW())";
+        PreparedStatement pstmt = conn.prepareStatement(sql);
+        pstmt.setInt(1, userId);
+        pstmt.setInt(2, flightId);
+        int result = pstmt.executeUpdate();
+        System.out.println(result > 0 ? "Booking successful." : "Booking failed.");
+    }
+
+    static void cancelBooking(int userId) throws SQLException {
+        System.out.print("Enter Booking ID to cancel: ");
+        int bookingId = sc.nextInt();
+        String sql = "DELETE FROM bookings WHERE booking_id=? AND user_id=?";
+        PreparedStatement pstmt = conn.prepareStatement(sql);
+        pstmt.setInt(1, bookingId);
+        pstmt.setInt(2, userId);
+        int result = pstmt.executeUpdate();
+        System.out.println(result > 0 ? "Booking cancelled." : "Invalid booking ID.");
+    }
+
+    // ADMIN SECTION
+    static void adminMenu() throws SQLException {
+        System.out.print("Enter admin username: ");
+        String username = sc.nextLine();
+        System.out.print("Enter password: ");
+        String password = sc.nextLine();
+
+        String sql = "SELECT * FROM users WHERE username=? AND password=? AND role='admin'";
+        PreparedStatement stmt = conn.prepareStatement(sql);
+        stmt.setString(1, username);
+        stmt.setString(2, password);
+        ResultSet rs = stmt.executeQuery();
+
+        if (rs.next()) {
+            System.out.println("Welcome Admin, " + username);
+
+            while (true) {
+                System.out.println("\n1. Add Flight\n2. View All Bookings\n3. Logout");
+                int ch = sc.nextInt();
+                sc.nextLine();
+
+                switch (ch) {
+                    case 1: addFlight(); break;
+                    case 2: viewBookings(); break;
+                    case 3: return;
+                }
+            }
+        } else {
+            System.out.println("Invalid admin credentials.");
+        }
+    }
+
+    static void addFlight() throws SQLException {
+        System.out.print("Flight Name: ");
+        String name = sc.nextLine();
+        System.out.print("Source: ");
+        String source = sc.nextLine();
+        System.out.print("Destination: ");
+        String dest = sc.nextLine();
+        System.out.print("Date (YYYY-MM-DD): ");
+        String date = sc.nextLine();
+        System.out.print("Time (HH:MM:SS): ");
+        String time = sc.nextLine();
+        System.out.print("Seats Available: ");
+        int seats = sc.nextInt();
+
+        String sql = "INSERT INTO flights (flight_name, source, destination, date, time, seats_available) VALUES (?, ?, ?, ?, ?, ?)";
+        PreparedStatement pstmt = conn.prepareStatement(sql);
+        pstmt.setString(1, name);
+        pstmt.setString(2, source);
+        pstmt.setString(3, dest);
+        pstmt.setString(4, date);
+        pstmt.setString(5, time);
+        pstmt.setInt(6, seats);
+
+        int result = pstmt.executeUpdate();
+        System.out.println(result > 0 ? "Flight added successfully." : "Failed to add flight.");
+    }
+
+    static void viewBookings() throws SQLException {
+        String sql = "SELECT b.booking_id, u.username, f.flight_name, b.booking_date FROM bookings b JOIN users u ON b.user_id = u.user_id JOIN flights f ON b.flight_id = f.flight_id";
+        Statement stmt = conn.createStatement();
+        ResultSet rs = stmt.executeQuery(sql);
+
+        System.out.println("\nAll Bookings:");
+        while (rs.next()) {
+            System.out.println("Booking ID: " + rs.getInt("booking_id") + ", User: " + rs.getString("username") +
+                               ", Flight: " + rs.getString("flight_name") + ", Date: " + rs.getDate("booking_date"));
+        }
+    }
+}
